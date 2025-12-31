@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 分公司教育訓練行事曆 (雲端版)</title>
+    <title>2026 分公司教育訓練行事曆 (正式版)</title>
     <style>
         :root {
             --color-deep-blue: #172439;
@@ -68,12 +68,11 @@
             border-radius: 20px;
             background: #eee;
             color: #666;
+            transition: all 0.3s;
         }
 
-        .status-online {
-            background: #d4edda;
-            color: #155724;
-        }
+        .status-online { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
 
         .calendar-grid { 
             display: grid; 
@@ -168,7 +167,6 @@
         .modal-actions { text-align: right; margin-top: 25px; }
         .btn-save { background: var(--color-deep-blue); color: var(--white); border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
         .btn-cancel { background: #e0e0e0; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-right: 10px; }
-
     </style>
 </head>
 <body>
@@ -176,16 +174,16 @@
 <div class="container">
     <div class="header">
         <div class="btn-group">
-            <button class="nav-btn" onclick="changeMonth(-1)">&#10094;</button>
-            <button class="nav-btn" onclick="changeMonth(1)">&#10095;</button>
+            <button class="nav-btn" onclick="changeMonth(-1)">上個月</button>
+            <button class="nav-btn" onclick="changeMonth(1)">下個月</button>
         </div>
         <h2 id="currentMonthDisplay">2026年 1月</h2>
         <div class="btn-group">
-            <span id="syncStatus" class="status-badge">雲端同步中...</span>
+            <span id="syncStatus" class="status-badge">📡 正在連線中...</span>
         </div>
     </div>
 
-    <div class="calendar-grid" id="calendar">
+    <div id="calendar" class="calendar-grid">
         <div class="day-name" style="color: var(--color-red)">SUN 日</div>
         <div class="day-name">MON 一</div>
         <div class="day-name">TUE 二</div>
@@ -196,21 +194,21 @@
     </div>
 
     <div class="stats-panel" id="statsArea">
-        <div id="statTags">正在載入雲端統計資料...</div>
+        <div id="statTags">正在讀取最新統計數據...</div>
     </div>
 </div>
 
-<div class="modal" id="eventModal">
+<div id="eventModal" class="modal">
     <div class="modal-content">
         <h3 id="modalTitle">新增排程</h3>
         <input type="hidden" id="modalDate">
         <div class="form-group">
             <label>分公司</label>
-            <input type="text" id="inputBranch">
+            <input type="text" id="inputBranch" placeholder="例如：桃園分公司">
         </div>
         <div class="form-group">
             <label>講師</label>
-            <input type="text" id="inputLecturer">
+            <input type="text" id="inputLecturer" placeholder="例如：瑜婷">
         </div>
         <div class="form-group">
             <label>時間</label>
@@ -218,59 +216,86 @@
         </div>
         <div class="modal-actions">
             <button class="btn-cancel" onclick="closeModal()">取消</button>
-            <button class="btn-save" onclick="saveEvent()">儲   存</button>
+            <button class="btn-save" onclick="saveEvent()">確認儲存</button>
         </div>
     </div>
 </div>
 
-<!-- Firebase SDK -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 系統配置
-    const firebaseConfig = JSON.parse(__firebase_config);
+    // ===================================================
+    // 重要：Firebase 配置資訊 (已根據您的專案更新)
+    // ===================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrswRkkh2bq9dMpQNwZdzgvRRf2Mm4J2A",
+      authDomain: "training-calendar-38731.firebaseapp.com",
+      projectId: "training-calendar-38731",
+      storageBucket: "training-calendar-38731.firebasestorage.app",
+      messagingSenderId: "16701157110",
+      appId: "1:16701157110:web:95665f2c3e3851cb0686d7",
+      measurementId: "G-1JZVTX6JPJ"
+    };
+
+    const statusEl = document.getElementById('syncStatus');
+
+    // 初始化 Firebase
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'training-calendar-2026';
+    const appId = 'training-calendar-2026';
 
     let events = [];
     let currentDate = new Date(2026, 0, 1);
-    let user = null;
 
-    // 初始化認證與即時監聽
     async function init() {
         try {
-            await signInAnonymously(auth);
-            onAuthStateChanged(auth, (u) => {
-                user = u;
+            // 監聽驗證狀態，如果沒登入就執行匿名登入
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
-                    onSnapshot(docRef, (docSnap) => {
-                        if (docSnap.exists()) {
-                            events = docSnap.data().events || [];
-                        } else {
-                            events = [];
-                            // 初始化空文件
-                            setDoc(docRef, { events: [] });
-                        }
-                        renderCalendar();
-                        document.getElementById('syncStatus').innerText = "✅ 雲端已連線";
-                        document.getElementById('syncStatus').classList.add('status-online');
-                    }, (error) => {
-                        console.error("監聽失敗:", error);
-                        document.getElementById('syncStatus').innerText = "❌ 連線錯誤";
-                    });
+                    console.log("Logged in as:", user.uid);
+                    startSync();
+                } else {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Anonymous Sign-in Error:", error);
+                        statusEl.innerText = "❌ 無法登入伺服器 (請確認 Firebase Auth 匿名功能已開啟)";
+                        statusEl.className = 'status-badge status-error';
+                    }
                 }
             });
         } catch (e) {
-            console.error("認證失敗:", e);
+            console.error("Init Error:", e);
+            statusEl.innerText = "❌ 初始化失敗";
+            statusEl.className = 'status-badge status-error';
         }
     }
 
-    // 將 renderCalendar 等函數掛載到全域以便 HTML 呼叫
+    // 開始同步資料庫
+    function startSync() {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+        
+        onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                events = docSnap.data().events || [];
+            } else {
+                events = [];
+                // 首次使用時初始化空集合
+                setDoc(docRef, { events: [] }).catch(e => console.error("Initial setDoc failed", e));
+            }
+            renderCalendar();
+            statusEl.innerText = "✅ 雲端同步中";
+            statusEl.className = 'status-badge status-online';
+        }, (err) => {
+            console.error("Firestore sync error:", err);
+            statusEl.innerText = "❌ 同步失敗 (請檢查 Firestore 安全性規則)";
+            statusEl.className = 'status-badge status-error';
+        });
+    }
+
     window.renderCalendar = function() {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
@@ -294,16 +319,20 @@
             const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const cell = document.createElement('div');
             cell.className = 'calendar-cell';
+            
             if (new Date(year, month, day).getDay() % 6 === 0) cell.classList.add('weekend');
-            if (cellDateStr === new Date().toISOString().split('T')[0]) cell.classList.add('today');
+            const todayStr = new Date().toISOString().split('T')[0];
+            if (cellDateStr === todayStr) cell.classList.add('today');
 
-            cell.onclick = (e) => { if(!e.target.classList.contains('delete-x')) openModal(cellDateStr); };
+            cell.onclick = (e) => { 
+                if(!e.target.classList.contains('delete-x')) openModal(cellDateStr); 
+            };
             cell.innerHTML = `<span class="date-number">${day}</span>`;
             
             events.filter(e => e.date === cellDateStr).sort((a,b)=>a.time.localeCompare(b.time)).forEach(evt => {
                 const eventDiv = document.createElement('div');
                 eventDiv.className = 'event-item';
-                eventDiv.innerHTML = `<span class="delete-x" onclick="window.deleteEvent('${evt.id}')">×</span><b>${evt.time}</b> ${evt.branch}-${evt.lecturer}`;
+                eventDiv.innerHTML = `<span class="delete-x" title="刪除" onclick="window.deleteEvent('${evt.id}')">×</span><b>${evt.time}</b> ${evt.branch}-${evt.lecturer}`;
                 cell.appendChild(eventDiv);
             });
             calendarEl.appendChild(cell);
@@ -327,26 +356,34 @@
     window.closeModal = function() { document.getElementById('eventModal').style.display = 'none'; }
 
     window.saveEvent = async function() {
-        if (!user) return;
-        const date = document.getElementById('modalDate').value;
         const branch = document.getElementById('inputBranch').value.trim();
         const lecturer = document.getElementById('inputLecturer').value.trim();
-        const time = document.getElementById('inputTime').value;
-
         if (!branch || !lecturer) return;
 
+        const date = document.getElementById('modalDate').value;
+        const time = document.getElementById('inputTime').value;
         const newEvents = [...events, { id: Date.now().toString(), date, branch, lecturer, time }];
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
-        await setDoc(docRef, { events: newEvents });
-        closeModal();
+        
+        try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+            await setDoc(docRef, { events: newEvents });
+            closeModal();
+        } catch (e) {
+            console.error("Save error:", e);
+            alert("儲存失敗：請確認 Firestore 的安全性規則已開放為所有人讀寫。");
+        }
     }
 
     window.deleteEvent = async function(id) {
-        if (!user) return;
-        if(confirm('確定刪除此排程？')) {
+        if(confirm('確定要永久刪除此項排程嗎？')) {
             const newEvents = events.filter(e => e.id !== id);
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
-            await setDoc(docRef, { events: newEvents });
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+                await setDoc(docRef, { events: newEvents });
+            } catch (e) {
+                console.error("Delete error:", e);
+                alert("刪除失敗。");
+            }
         }
     }
 
@@ -354,10 +391,11 @@
         const stats = {};
         events.forEach(e => { stats[e.branch] = (stats[e.branch] || 0) + 1; });
         const statsEl = document.getElementById('statTags');
-        if (events.length === 0) { statsEl.innerHTML = '尚無排程資料'; return; }
-        let html = '<strong>📊 全國分公司場次統計：</strong>';
+        if (events.length === 0) { statsEl.innerHTML = '📅 2026 年目前尚無排程'; return; }
+        
+        let html = '<strong>📊 全國分公司教育訓練場次統計：</strong>';
         Object.entries(stats).sort((a,b)=>b[1]-a[1]).forEach(([n, c]) => {
-            html += `<span class="stat-tag">${n}: ${c}</span>`;
+            html += `<span class="stat-tag">${n}: ${c} 場</span>`;
         });
         statsEl.innerHTML = html;
     }
