@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 分公司教育訓練行事曆 (雲端版)</title>
+    <style>
+        :root {
+            --color-deep-blue: #172439;
+            --color-red: #C43826;
+            --color-gold: #DAA360;
+            --color-medium-blue: #3F5377;
+            --color-grey-blue: #ABBCCF;
+            --color-light-bg: #E4E9F4;
+            --white: #ffffff;
+        }
+
+        body { 
+            font-family: "Microsoft JhengHei", "Segoe UI", sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: var(--color-light-bg); 
+            color: var(--color-deep-blue);
+        }
+
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: var(--white); 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(23, 36, 57, 0.1); 
+        }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 25px; 
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--color-grey-blue);
+        }
+        
+        .header h2 { 
+            margin: 0; 
+            color: var(--color-deep-blue); 
+            font-size: 1.8rem;
+        }
+
+        .btn-group { display: flex; gap: 10px; align-items: center; }
+
+        .nav-btn { 
+            background: var(--color-medium-blue); 
+            color: var(--white); 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            transition: background 0.3s;
+        }
+        
+        .nav-btn:hover { background-color: var(--color-deep-blue); }
+
+        .status-badge {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #eee;
+            color: #666;
+        }
+
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .calendar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); 
+            gap: 1px; 
+            background-color: var(--color-grey-blue); 
+            border: 1px solid var(--color-deep-blue); 
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .day-name { 
+            background: var(--color-deep-blue); 
+            color: var(--white); 
+            text-align: center; 
+            padding: 12px; 
+            font-weight: bold; 
+        }
+
+        .calendar-cell { 
+            background: var(--white); 
+            min-height: 120px; 
+            padding: 8px; 
+            position: relative; 
+            cursor: pointer; 
+        }
+
+        .calendar-cell:hover { background-color: #f0f4f8; }
+        .calendar-cell.empty { background-color: #f8f9fa; cursor: default; }
+
+        .date-number { 
+            font-weight: bold; 
+            margin-bottom: 8px; 
+            color: var(--color-medium-blue); 
+            display: block; 
+            text-align: right; 
+        }
+
+        .calendar-cell.weekend .date-number { color: var(--color-red); }
+        .today { background-color: #fffbf2 !important; box-shadow: inset 0 0 0 2px var(--color-gold); }
+
+        .event-item {
+            background-color: var(--white);
+            padding: 6px 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            font-size: 13px;
+            border-left: 4px solid var(--color-gold);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .delete-x { float: right; color: var(--color-grey-blue); cursor: pointer; display: none; }
+        .event-item:hover .delete-x { display: inline; color: var(--color-red); }
+
+        .stats-panel { 
+            margin-top: 25px; 
+            padding: 20px; 
+            background: var(--white); 
+            border-left: 6px solid var(--color-deep-blue); 
+            border-radius: 4px; 
+        }
+
+        .stat-tag {
+            display: inline-block; 
+            margin-right: 15px; 
+            background: var(--color-light-bg); 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            margin-top: 8px;
+            border: 1px solid var(--color-grey-blue);
+        }
+
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(23, 36, 57, 0.6); 
+            justify-content: center; align-items: center; 
+            z-index: 1000; 
+        }
+
+        .modal-content { 
+            background: var(--white); padding: 30px; border-radius: 10px; width: 400px; 
+            border-top: 5px solid var(--color-gold);
+        }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; }
+        .form-group input { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid var(--color-grey-blue); border-radius: 6px; }
+
+        .modal-actions { text-align: right; margin-top: 25px; }
+        .btn-save { background: var(--color-deep-blue); color: var(--white); border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-cancel { background: #e0e0e0; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-right: 10px; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="btn-group">
+            <button class="nav-btn" onclick="changeMonth(-1)">&#10094;</button>
+            <button class="nav-btn" onclick="changeMonth(1)">&#10095;</button>
+        </div>
+        <h2 id="currentMonthDisplay">2026年 1月</h2>
+        <div class="btn-group">
+            <span id="syncStatus" class="status-badge">雲端同步中...</span>
+        </div>
+    </div>
+
+    <div class="calendar-grid" id="calendar">
+        <div class="day-name" style="color: var(--color-red)">SUN 日</div>
+        <div class="day-name">MON 一</div>
+        <div class="day-name">TUE 二</div>
+        <div class="day-name">WED 三</div>
+        <div class="day-name">THU 四</div>
+        <div class="day-name">FRI 五</div>
+        <div class="day-name" style="color: var(--color-gold)">SAT 六</div>
+    </div>
+
+    <div class="stats-panel" id="statsArea">
+        <div id="statTags">正在載入雲端統計資料...</div>
+    </div>
+</div>
+
+<div class="modal" id="eventModal">
+    <div class="modal-content">
+        <h3 id="modalTitle">新增排程</h3>
+        <input type="hidden" id="modalDate">
+        <div class="form-group">
+            <label>分公司</label>
+            <input type="text" id="inputBranch">
+        </div>
+        <div class="form-group">
+            <label>講師</label>
+            <input type="text" id="inputLecturer">
+        </div>
+        <div class="form-group">
+            <label>時間</label>
+            <input type="time" id="inputTime" value="09:00">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">取消</button>
+            <button class="btn-save" onclick="saveEvent()">儲   存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, setDoc, updateDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 系統配置
+    const firebaseConfig = JSON.parse(__firebase_config);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'training-calendar-2026';
+
+    let events = [];
+    let currentDate = new Date(2026, 0, 1);
+    let user = null;
+
+    // 初始化認證與即時監聽
+    async function init() {
+        try {
+            await signInAnonymously(auth);
+            onAuthStateChanged(auth, (u) => {
+                user = u;
+                if (user) {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+                    onSnapshot(docRef, (docSnap) => {
+                        if (docSnap.exists()) {
+                            events = docSnap.data().events || [];
+                        } else {
+                            events = [];
+                            // 初始化空文件
+                            setDoc(docRef, { events: [] });
+                        }
+                        renderCalendar();
+                        document.getElementById('syncStatus').innerText = "✅ 雲端已連線";
+                        document.getElementById('syncStatus').classList.add('status-online');
+                    }, (error) => {
+                        console.error("監聽失敗:", error);
+                        document.getElementById('syncStatus').innerText = "❌ 連線錯誤";
+                    });
+                }
+            });
+        } catch (e) {
+            console.error("認證失敗:", e);
+        }
+    }
+
+    // 將 renderCalendar 等函數掛載到全域以便 HTML 呼叫
+    window.renderCalendar = function() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        document.getElementById('currentMonthDisplay').innerText = `${year}年 ${month + 1}月`;
+        
+        const calendarEl = document.getElementById('calendar');
+        const headers = Array.from(document.querySelectorAll('.day-name'));
+        calendarEl.innerHTML = '';
+        headers.forEach(h => calendarEl.appendChild(h));
+
+        let firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = 'calendar-cell empty';
+            calendarEl.appendChild(emptyCell);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const cell = document.createElement('div');
+            cell.className = 'calendar-cell';
+            if (new Date(year, month, day).getDay() % 6 === 0) cell.classList.add('weekend');
+            if (cellDateStr === new Date().toISOString().split('T')[0]) cell.classList.add('today');
+
+            cell.onclick = (e) => { if(!e.target.classList.contains('delete-x')) openModal(cellDateStr); };
+            cell.innerHTML = `<span class="date-number">${day}</span>`;
+            
+            events.filter(e => e.date === cellDateStr).sort((a,b)=>a.time.localeCompare(b.time)).forEach(evt => {
+                const eventDiv = document.createElement('div');
+                eventDiv.className = 'event-item';
+                eventDiv.innerHTML = `<span class="delete-x" onclick="window.deleteEvent('${evt.id}')">×</span><b>${evt.time}</b> ${evt.branch}-${evt.lecturer}`;
+                cell.appendChild(eventDiv);
+            });
+            calendarEl.appendChild(cell);
+        }
+        updateStats();
+    }
+
+    window.changeMonth = function(offset) {
+        currentDate.setMonth(currentDate.getMonth() + offset);
+        renderCalendar();
+    }
+
+    window.openModal = function(dateStr) {
+        document.getElementById('modalDate').value = dateStr;
+        document.getElementById('modalTitle').innerText = `新增排程 (${dateStr})`;
+        document.getElementById('inputBranch').value = '';
+        document.getElementById('inputLecturer').value = '';
+        document.getElementById('eventModal').style.display = 'flex';
+    }
+
+    window.closeModal = function() { document.getElementById('eventModal').style.display = 'none'; }
+
+    window.saveEvent = async function() {
+        if (!user) return;
+        const date = document.getElementById('modalDate').value;
+        const branch = document.getElementById('inputBranch').value.trim();
+        const lecturer = document.getElementById('inputLecturer').value.trim();
+        const time = document.getElementById('inputTime').value;
+
+        if (!branch || !lecturer) return;
+
+        const newEvents = [...events, { id: Date.now().toString(), date, branch, lecturer, time }];
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+        await setDoc(docRef, { events: newEvents });
+        closeModal();
+    }
+
+    window.deleteEvent = async function(id) {
+        if (!user) return;
+        if(confirm('確定刪除此排程？')) {
+            const newEvents = events.filter(e => e.id !== id);
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'calendar');
+            await setDoc(docRef, { events: newEvents });
+        }
+    }
+
+    function updateStats() {
+        const stats = {};
+        events.forEach(e => { stats[e.branch] = (stats[e.branch] || 0) + 1; });
+        const statsEl = document.getElementById('statTags');
+        if (events.length === 0) { statsEl.innerHTML = '尚無排程資料'; return; }
+        let html = '<strong>📊 全國分公司場次統計：</strong>';
+        Object.entries(stats).sort((a,b)=>b[1]-a[1]).forEach(([n, c]) => {
+            html += `<span class="stat-tag">${n}: ${c}</span>`;
+        });
+        statsEl.innerHTML = html;
+    }
+
+    window.onclick = (e) => { if(e.target == document.getElementById('eventModal')) closeModal(); }
+
+    init();
+</script>
+
+</body>
+</html>
